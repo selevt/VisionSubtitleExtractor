@@ -1,4 +1,4 @@
-# SubtitleExtractor
+# VisionSubtitleExtractor
 
 A macOS command-line application that extracts subtitles from videos using the Vision API.
 
@@ -25,12 +25,12 @@ A macOS command-line application that extracts subtitles from videos using the V
 swift build -c release
 ```
 
-4. The executable will be located in `.build/release/SubtitleExtractor`
+4. The executable will be located in `.build/release/VisionSubtitleExtractor`
 
 ## Usage
 
 ```bash
-SubtitleExtractor <video_file_path> [interval_in_seconds] [output_file_path]
+VisionSubtitleExtractor <video_file_path> [interval_in_seconds] [output_file_path]
 ```
 
 ### Arguments
@@ -43,17 +43,17 @@ SubtitleExtractor <video_file_path> [interval_in_seconds] [output_file_path]
 
 Extract subtitles from a video with default settings (1 second interval):
 ```bash
-SubtitleExtractor /path/to/movie.mp4
+VisionSubtitleExtractor /path/to/movie.mp4
 ```
 
 Extract subtitles every 2.5 seconds:
 ```bash
-SubtitleExtractor /path/to/movie.mp4 2.5
+VisionSubtitleExtractor /path/to/movie.mp4 2.5
 ```
 
 Specify custom output path:
 ```bash
-SubtitleExtractor /path/to/movie.mp4 1.0 /path/to/custom_subtitles.srt
+VisionSubtitleExtractor /path/to/movie.mp4 1.0 /path/to/custom_subtitles.srt
 ```
 
 ## How It Works

@@ -1,6 +1,6 @@
 <!-- Use this file to provide workspace-specific custom instructions to Copilot. For more details, visit https://code.visualstudio.com/docs/copilot/copilot-customization#_use-a-githubcopilotinstructionsmd-file -->
 
-# SubtitleExtractor Project Instructions
+# VisionSubtitleExtractor Project Instructions
 
 This is a Swift command-line application that uses macOS Vision API for OCR (Optical Character Recognition) to extract subtitles from videos.
 

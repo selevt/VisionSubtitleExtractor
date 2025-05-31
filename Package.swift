@@ -2,14 +2,14 @@
 import PackageDescription
 
 let package = Package(
-    name: "SubtitleExtractor",
+    name: "VisionSubtitleExtractor",
     platforms: [
         .macOS(.v13)
     ],
     dependencies: [],
     targets: [
         .executableTarget(
-            name: "SubtitleExtractor",
+            name: "VisionSubtitleExtractor",
             dependencies: [],
             path: "."
         )
