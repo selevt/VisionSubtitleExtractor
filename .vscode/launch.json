@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:SubtitleExtractor}",
+            "name": "Debug SubtitleExtractor",
+            "program": "${workspaceFolder:SubtitleExtractor}/.build/debug/SubtitleExtractor",
+            "preLaunchTask": "swift: Build Debug SubtitleExtractor"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:SubtitleExtractor}",
+            "name": "Release SubtitleExtractor",
+            "program": "${workspaceFolder:SubtitleExtractor}/.build/release/SubtitleExtractor",
+            "preLaunchTask": "swift: Build Release SubtitleExtractor"
+        }
+    ]
+}
