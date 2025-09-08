@@ -4,25 +4,7 @@
             "type": "swift",
             "request": "launch",
             "args": [],
-            "cwd": "${workspaceFolder:VisionSubtitleExtractor}",
-            "name": "Debug VisionSubtitleExtractor",
-            "program": "${workspaceFolder:VisionSubtitleExtractor}/.build/debug/VisionSubtitleExtractor",
-            "preLaunchTask": "swift: Build Debug VisionSubtitleExtractor"
-        },
-        {
-            "type": "swift",
-            "request": "launch",
-            "args": [],
-            "cwd": "${workspaceFolder:VisionSubtitleExtractor}",
-            "name": "Release VisionSubtitleExtractor",
-            "program": "${workspaceFolder:VisionSubtitleExtractor}/.build/release/VisionSubtitleExtractor",
-            "preLaunchTask": "swift: Build Release VisionSubtitleExtractor"
-        },
-        {
-            "type": "swift",
-            "request": "launch",
-            "args": [],
-            "cwd": "${workspaceFolder:VisionSubtitleExtractor}",
+            "cwd": "${workspaceFolder:SubtitleExtractor}",
             "name": "Debug VisionSubtitleExtractor",
             "program": "${workspaceFolder:SubtitleExtractor}/.build/debug/VisionSubtitleExtractor",
             "preLaunchTask": "swift: Build Debug VisionSubtitleExtractor"
@@ -31,7 +13,7 @@
             "type": "swift",
             "request": "launch",
             "args": [],
-            "cwd": "${workspaceFolder:VisionSubtitleExtractor}",
+            "cwd": "${workspaceFolder:SubtitleExtractor}",
             "name": "Release VisionSubtitleExtractor",
             "program": "${workspaceFolder:SubtitleExtractor}/.build/release/VisionSubtitleExtractor",
             "preLaunchTask": "swift: Build Release VisionSubtitleExtractor"

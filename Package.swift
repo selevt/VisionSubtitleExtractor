@@ -6,11 +6,15 @@ let package = Package(
     platforms: [
         .macOS(.v13)
     ],
-    dependencies: [],
+    dependencies: [
+      .package(url: "https://github.com/apple/swift-argument-parser", from: "1.0.0"),
+    ],
     targets: [
         .executableTarget(
             name: "VisionSubtitleExtractor",
-            dependencies: [],
+            dependencies: [
+                .product(name: "ArgumentParser", package: "swift-argument-parser")
+            ],
             path: "."
         )
     ]
