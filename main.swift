@@ -121,7 +121,12 @@ class SubtitleExtractor {
                 
                 if !recognizedText.isEmpty {
                     let startTime = currentFrameTime
-                    let endTime = CMTimeAdd(startTime, CMTimeMakeWithSeconds(intervalInSeconds, preferredTimescale: 600))
+                    var endTime = CMTimeAdd(startTime, CMTimeMakeWithSeconds(intervalInSeconds, preferredTimescale: 600))
+                    
+                    // Ensure endTime doesn't exceed video duration
+                    if CMTimeCompare(endTime, videoDuration) > 0 {
+                        endTime = videoDuration
+                    }
                     
                     let subtitle = Subtitle(
                         index: subtitles.count + 1,
@@ -209,10 +214,17 @@ class SubtitleExtractor {
                 if curr.text == subtitle.text || subtitle.text.hasPrefix(curr.text) {
                     // Extend the endTime and use the longer text
                     let mergedText = subtitle.text.count > curr.text.count ? subtitle.text : curr.text
+                    var endTime = subtitle.endTime
+                    
+                    // Ensure endTime doesn't exceed video duration
+                    if CMTimeCompare(endTime, videoDuration) > 0 {
+                        endTime = videoDuration
+                    }
+                    
                     currentSubtitle = Subtitle(
                         index: curr.index,
                         startTime: curr.startTime,
-                        endTime: subtitle.endTime,
+                        endTime: endTime,
                         text: mergedText
                     )
                 } else {
@@ -239,9 +251,19 @@ class SubtitleExtractor {
 
         // Re-index merged subtitles
         var srtContent = ""
+        let ms10 = CMTimeMake(value: 10, timescale: 1000) // 10 milliseconds
         for (i, subtitle) in mergedSubtitles.enumerated() {
+            var endTime = subtitle.endTime
+            // If this is the last subtitle and its endTime is at or after videoDuration, subtract 10ms
+            if i == mergedSubtitles.count - 1 && CMTimeCompare(endTime, videoDuration) >= 0 {
+                endTime = CMTimeSubtract(videoDuration, ms10)
+                if CMTimeCompare(endTime, subtitle.startTime) <= 0 {
+                    // If subtracting 10ms would make endTime before startTime, set endTime = subtitle.startTime
+                    endTime = subtitle.startTime
+                }
+            }
             srtContent += "\(i+1)\n"
-            srtContent += "\(formatSRTTime(subtitle.startTime)) --> \(formatSRTTime(subtitle.endTime))\n"
+            srtContent += "\(formatSRTTime(subtitle.startTime)) --> \(formatSRTTime(endTime))\n"
             srtContent += "\(subtitle.text)\n\n"
         }
 
