@@ -30,14 +30,15 @@ swift build -c release
 ## Usage
 
 ```bash
-VisionSubtitleExtractor <video_file_path> [interval_in_seconds] [output_file_path]
+VisionSubtitleExtractor <video_path> [--interval <seconds>] [--output <output_path>]
 ```
 
 ### Arguments
 
-- `video_file_path` (required): Path to the video file
-- `interval_in_seconds` (optional): How often to extract frames, in seconds (default: 1.0)
-- `output_file_path` (optional): Path to save the SRT file (default: video_name.srt)
+- `<video_path>` (required): Path to the input video file
+- `--interval <seconds>` (optional): Interval in seconds between extracted frames (default: 1.0)
+- `--output <output_path>` (optional): Path to save the SRT file (default: `<video_name>.srt` in the current directory)
+- `--roi <x y width height>` (optional): Region of interest for text detection as four space-separated values (all normalized 0.0-1.0). Note that (0,0) is the BOTTOM-LEFT corner of the frame.
 
 ### Examples
 
@@ -48,13 +49,30 @@ VisionSubtitleExtractor /path/to/movie.mp4
 
 Extract subtitles every 2.5 seconds:
 ```bash
-VisionSubtitleExtractor /path/to/movie.mp4 2.5
+VisionSubtitleExtractor /path/to/movie.mp4 --interval 2.5
 ```
 
 Specify custom output path:
 ```bash
-VisionSubtitleExtractor /path/to/movie.mp4 1.0 /path/to/custom_subtitles.srt
+VisionSubtitleExtractor /path/to/movie.mp4 --output /path/to/custom_subtitles.srt
 ```
+
+Use both custom interval and output path:
+```bash
+VisionSubtitleExtractor /path/to/movie.mp4 --interval 2.0 --output /path/to/custom_subtitles.srt
+```
+
+Specify a region of interest (ROI) for text detection (bottom 30% of the frame):
+```bash
+VisionSubtitleExtractor /path/to/movie.mp4 --roi 0 0 1 0.3
+```
+
+Combine all options:
+```bash
+VisionSubtitleExtractor /path/to/movie.mp4 --interval 1.5 --output /path/to/custom_subtitles.srt --roi 0 0 1 0.3
+```
+
+Note: For the ROI parameter, coordinates use (0,0) as the BOTTOM-LEFT corner and (1,1) as the TOP-RIGHT corner.
 
 ## How It Works
 
