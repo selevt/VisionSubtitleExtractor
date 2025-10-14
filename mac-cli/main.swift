@@ -110,8 +110,12 @@ class SubtitleExtractor {
         subtitles.removeAll()
         currentFrameTime = .zero
         
+        print("Analyzing frames (this may take some time)...")
+        
         // Process frames at regular intervals
         await processFrames()
+        
+        print("Processing complete. Generating SRT file...")
         writeSubtitlesToFile()
         return true
     }
@@ -120,7 +124,28 @@ class SubtitleExtractor {
         // Start at a small offset from zero to avoid "Cannot Open" error with exact zero time
         currentFrameTime = CMTimeMakeWithSeconds(0.1, preferredTimescale: 600)
         
+        // Create a progress object for tracking overall progress
+        let totalSeconds = CMTimeGetSeconds(videoDuration)
+        let progress = Progress(totalUnitCount: Int64(totalSeconds / intervalInSeconds))
+        // progress.kind = .file
+        // progress.fileOperationKind = .processing
+        
+        // For terminal progress bar
+        let progressBarWidth = 30
+        
         while CMTimeCompare(currentFrameTime, videoDuration) < 0 {
+            // Update progress
+            let currentSeconds = CMTimeGetSeconds(currentFrameTime)
+            let progressPercent = currentSeconds / totalSeconds
+            let completedWork = Int64(currentSeconds / intervalInSeconds)
+            progress.completedUnitCount = completedWork
+            
+            // Print terminal progress bar
+            let progressBarFilled = Int(progressPercent * Double(progressBarWidth))
+            let progressBar = String(repeating: "█", count: progressBarFilled) + String(repeating: "░", count: progressBarWidth - progressBarFilled)
+            print("\r[" + progressBar + "] \(Int(progressPercent * 100))%", terminator: "")
+            fflush(__stdoutp)
+            
             // Generate image from the current time
             if let image = try? await generateImageFromVideo(at: currentFrameTime) {
                 // Perform OCR on the image
@@ -143,7 +168,9 @@ class SubtitleExtractor {
                     )
                     
                     subtitles.append(subtitle)
-                    print("Frame at \(formatTime(startTime)): \(recognizedText)")
+                    // Clear the progress bar line and print the subtitle info
+                    print("\r" + String(repeating: " ", count: progressBarWidth + 7))
+                    print("\rFrame at \(formatTime(startTime)): \(recognizedText)")
                     fflush(__stdoutp)
                 }
             }
@@ -151,6 +178,10 @@ class SubtitleExtractor {
             // Move to the next time interval
             currentFrameTime = CMTimeAdd(currentFrameTime, CMTimeMakeWithSeconds(intervalInSeconds, preferredTimescale: 600))
         }
+        
+        // Print 100% progress at the end
+        print("\r[" + String(repeating: "█", count: progressBarWidth) + "] 100%")
+        fflush(__stdoutp)
     }
     
     // MARK: - Image Generation
