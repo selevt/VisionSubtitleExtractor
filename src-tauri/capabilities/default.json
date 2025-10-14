@@ -18,6 +18,10 @@
         }
       ]
     },
-    "shell:default"
+    "shell:default",
+    "dialog:default",
+    "fs:default",
+    "fs:allow-copy-file",
+    "fs:allow-temp-read-recursive"
   ]
 }
