@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "VisionSubtitleExtractor",
+    name: "vision-subtitle-extractor-mac",
     platforms: [
         .macOS(.v13)
     ],
@@ -11,7 +11,7 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "VisionSubtitleExtractor",
+            name: "vision-subtitle-extractor-mac",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser")
             ],

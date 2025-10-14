@@ -54,6 +54,13 @@ struct SubtitleExtractorCLI: ParsableCommand {
                 }
             } catch {
                 print("Error during subtitle extraction: \(error.localizedDescription)")
+                print("Error type: \(type(of: error))")
+                print("Error debug: \(error)")
+                if let nsError = error as NSError? {
+                    print("NSError domain: \(nsError.domain)")
+                    print("NSError code: \(nsError.code)")
+                    print("NSError userInfo: \(nsError.userInfo)")
+                }
             }
             Foundation.exit(0)
         }
