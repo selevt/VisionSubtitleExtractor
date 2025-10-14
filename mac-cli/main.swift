@@ -144,6 +144,7 @@ class SubtitleExtractor {
                     
                     subtitles.append(subtitle)
                     print("Frame at \(formatTime(startTime)): \(recognizedText)")
+                    fflush(__stdoutp)
                 }
             }
             

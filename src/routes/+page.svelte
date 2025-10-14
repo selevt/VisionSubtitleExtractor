@@ -10,13 +10,15 @@
 	let filePath = $state('');
 	let fileName = $state('');
 	let intervalMs = $state(1000);
-	let isDragging = $state(false);
+	let roi = $state('');
 
+	let isDragging = $state(false);
 	let inProgress = $state(false);
+
 	let res: ExtractResult | undefined = $state(undefined);
 	let resFilePath = $state('');
 	let resError: unknown = $state(undefined);
-	
+
 	async function setupDragDrop() {
 		const webview = getCurrentWebview();
 		await webview.onDragDropEvent((event) => {
@@ -35,21 +37,23 @@
 			}
 		});
 	}
-	
+
 	$effect(() => {
 		setupDragDrop().catch(console.error);
 	});
-	
+
 	async function handleFileSelect() {
 		// Use Tauri's dialog API to get the file path
 		const selected = await open({
 			multiple: false,
-			filters: [{
-				name: 'Video',
-				extensions: ['mp4', 'mov', 'avi', 'm4v', 'mkv']
-			}]
+			filters: [
+				{
+					name: 'Video',
+					extensions: ['mp4', 'mov', 'avi', 'm4v', 'mkv']
+				}
+			]
 		});
-		
+
 		if (selected) {
 			// If the user selected a file, update the file path and name
 			filePath = selected as string;
@@ -64,7 +68,7 @@
 			alert('Please select a video file first');
 			return;
 		}
-		
+
 		try {
 			inProgress = true;
 			const outputDir = await tempDir();
@@ -73,7 +77,8 @@
 			const output = await backend.extract({
 				filePath,
 				outputPath,
-				intervalMs: hasCapability(backend, Capability.OPTION_INTERVAL) ? intervalMs : undefined
+				intervalMs: hasCapability(backend, Capability.OPTION_INTERVAL) ? intervalMs : undefined,
+				roi: hasCapability(backend, Capability.REGION_OF_INTEREST) && roi ? roi : undefined
 			});
 
 			console.log('done', output);
@@ -94,11 +99,11 @@
 			alert('No SRT file to save');
 			return;
 		}
-		
+
 		const destPath = await save({
-			title: 'Select file to save SRT',
+			title: 'Select file to save SRT'
 		});
-		
+
 		if (destPath) {
 			copyFile(resFilePath, destPath);
 			alert(`SRT saved to ${destPath}`);
@@ -111,9 +116,9 @@
 
 	<form>
 		<div class="file-drop-area {isDragging ? 'dragging' : ''}">
-			<button 
-				type="button" 
-				class="file-input-container" 
+			<button
+				type="button"
+				class="file-input-container"
 				onclick={handleFileSelect}
 				onkeydown={(e) => e.key === 'Enter' && handleFileSelect()}
 			>
@@ -123,27 +128,38 @@
 			</button>
 		</div>
 	</form>
-	<div class="row">
-		{#if hasCapability(backend, Capability.OPTION_INTERVAL)}
+
+	{#if hasCapability(backend, Capability.OPTION_INTERVAL)}
+		<div class="row">
 			<label for="interval-input">Interval (ms):</label>
 			<input id="interval-input" inputmode="numeric" bind:value={intervalMs} />
-		{/if}
-	</div>
+		</div>
+	{/if}
+
+	{#if hasCapability(backend, Capability.REGION_OF_INTEREST) && backend.roiFormat}
+		<div class="row">
+			<!-- TODO: integrate directly -->
+			<label for="roi-input">Region of interest (<a target='_blank' href={`https://selevt.github.io/video-area-selection/?template=${encodeURIComponent(backend.roiFormat())}`}>
+				Get from here
+			</a>):</label>
+			<input id="roi-input" bind:value={roi} />
+		</div>
+	{/if}
 
 	<button onclick={runCmd}>Start extraction {filePath ? `(${filePath})` : ''}</button>
 	{#if inProgress}
-    <p>In progress...</p>
-  {:else if res && res.code === 0}
+		<p>In progress...</p>
+	{:else if res && res.code === 0}
 		<p>Result: success</p>
 		<button onclick={saveSrt}>Save SRT</button>
-  {:else if resError || res?.code}
+	{:else if resError || res?.code}
 		<p>Result: error</p>
-    {#if resError}
-      <pre>{JSON.stringify(resError, null, 2)}</pre>
-    {/if}
-    {#if res}
-      <pre>{JSON.stringify(res, null, 2)}</pre>
-    {/if}
+		{#if resError}
+			<pre>{JSON.stringify(resError, null, 2)}</pre>
+		{/if}
+		{#if res}
+			<pre>{JSON.stringify(res, null, 2)}</pre>
+		{/if}
 	{/if}
 </main>
 
@@ -192,8 +208,8 @@
 		text-align: center;
 	}
 
-	input[type="text"],
-	input[type="number"],
+	input[type='text'],
+	input[type='number'],
 	button {
 		border-radius: 8px;
 		border: 1px solid transparent;
@@ -223,7 +239,7 @@
 	button {
 		outline: none;
 	}
-	
+
 	.file-drop-area {
 		width: 100%;
 		max-width: 400px;
@@ -235,12 +251,12 @@
 		background-color: #ffffff;
 		box-shadow: 0 2px 2px rgba(0, 0, 0, 0.1);
 	}
-	
+
 	.file-drop-area.dragging {
 		border-color: #396cd8;
 		background-color: rgba(57, 108, 216, 0.05);
 	}
-	
+
 	.file-input-container {
 		position: relative;
 		text-align: center;
@@ -250,11 +266,11 @@
 		background-color: rgba(0, 0, 0, 0.03);
 		transition: all 0.2s ease;
 	}
-	
+
 	.file-input-container:hover {
 		background-color: rgba(57, 108, 216, 0.1);
 	}
-	
+
 	.file-input-label {
 		display: flex;
 		align-items: center;
@@ -267,12 +283,12 @@
 		white-space: nowrap;
 		min-height: 1.5rem;
 	}
-	
+
 	.file-input-label::before {
 		content: '📁 ';
 		margin-right: 0.5rem;
 	}
-	
+
 	#interval-input {
 		margin-left: 10px;
 	}
@@ -295,25 +311,25 @@
 		button:active {
 			background-color: #0f0f0f69;
 		}
-		
+
 		.file-drop-area {
 			background-color: #1a1a1a;
 			border-color: #444;
 		}
-		
+
 		.file-drop-area.dragging {
 			border-color: #24c8db;
 			background-color: rgba(36, 200, 219, 0.1);
 		}
-		
+
 		.file-input-container {
 			background-color: rgba(255, 255, 255, 0.05);
 		}
-		
+
 		.file-input-container:hover {
 			background-color: rgba(36, 200, 219, 0.15);
 		}
-		
+
 		.file-input-label {
 			color: #aaa;
 		}
