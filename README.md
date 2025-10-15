@@ -1,7 +1,19 @@
-# Tauri + SvelteKit + TypeScript
+# Vision Subtitle Extractor
 
-This template should help get you started developing with Tauri, SvelteKit and TypeScript in Vite.
+Extract subtitles from videos with OCR.
 
-## Recommended IDE Setup
+This is only for macOS for now, utilizing the built-in OCR.
 
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer).
+## Developing
+
+Compile the CLI
+
+```sh
+pnpm run build:mac-cli
+```
+
+Run frontend (requires to run the command above first)
+
+```sh
+pnpm run tauri dev
+```
