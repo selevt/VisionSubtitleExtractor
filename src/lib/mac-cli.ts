@@ -1,5 +1,6 @@
 import { Command } from "@tauri-apps/plugin-shell";
 import { type ExtractOptions, type ExtractResult, type Backend, Capability } from "./backend-common";
+import { json } from "@sveltejs/kit";
 
 interface MacCliOptions extends ExtractOptions {}
 interface MacCliResult extends ExtractResult {}
@@ -10,8 +11,8 @@ export const macCliBackend: Backend = {
   roiFormat: () => "{leftRel} {bottomRel} {widthRel} {heightRel}",
 
   extract: async (options: MacCliOptions): Promise<MacCliResult> => {
-    const { filePath, outputPath, intervalMs, roi } = options;
-    const args: string[] = [filePath, "--output", outputPath];
+    const { filePath, outputPath, intervalMs, roi, onProgress } = options;
+    const args: string[] = [filePath, "--json", "--output", outputPath];
     if (intervalMs) {
       // ms to seconds
       args.push("--interval", String(intervalMs / 1000));
@@ -27,6 +28,18 @@ export const macCliBackend: Backend = {
     command.stdout.addListener("data", (line) => {
       console.log(`[mac-cli] ${line}`);
       stdout += line + "\n";
+      
+      // Try to parse JSON output and check for progress updates
+      if (onProgress) {
+        try {
+          const jsonData = JSON.parse(line);
+          if (jsonData.type === "progress" && typeof jsonData.progressFraction === "number") {
+            onProgress(jsonData.progressFraction);
+          }
+        } catch (e) {
+          console.warn("Failed to parse mac-cli JSON output:", line, e);
+        }
+      }
     });
     command.stderr.addListener("data", (line) => {
       console.error(`[mac-cli] ${line}`);

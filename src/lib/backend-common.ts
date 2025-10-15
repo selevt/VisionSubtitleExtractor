@@ -5,6 +5,11 @@ export interface ExtractOptions {
   intervalMs?: number;
   /** region of interest. This is to limit OCR processing to a specific area */
   roi?: string;
+
+  /**
+   * Optional callback to receive progress updates (0.0 to 1.0)
+   */
+  onProgress?: (progressFraction: number) => void;
 }
 export interface ExtractResult {
   stdout: string;

@@ -3,6 +3,116 @@ import Vision
 import AVFoundation
 import ArgumentParser
 
+// MARK: - Logging Protocol and Implementations
+
+protocol Logger {
+    func info(_ message: String)
+    func debug(_ message: String)
+    func error(_ message: String)
+    func progress(percent: Double, progressBar: String)
+    func progressComplete()
+    func subtitle(at time: String, text: String)
+    func clearLine()
+}
+
+class StandardLogger: Logger {
+    func info(_ message: String) {
+        print(message)
+        fflush(__stdoutp)
+    }
+    
+    func debug(_ message: String) {
+        print(message)
+        fflush(__stdoutp)
+    }
+    
+    func error(_ message: String) {
+        print(message)
+        fflush(__stdoutp)
+    }
+    
+    func progress(percent: Double, progressBar: String) {
+        print("\r[\(progressBar)] \(Int(percent * 100))%", terminator: "")
+        fflush(__stdoutp)
+    }
+    
+    func progressComplete() {
+        print("")
+        fflush(__stdoutp)
+    }
+    
+    func subtitle(at time: String, text: String) {
+        print("\rFrame at \(time): \(text)")
+        fflush(__stdoutp)
+    }
+    
+    func clearLine() {
+        // Clear the progress bar line
+        print("\r" + String(repeating: " ", count: 37))
+        fflush(__stdoutp)
+    }
+}
+
+class JSONLogger: Logger {
+    func info(_ message: String) {
+        let json: [String: Any] = [
+            "type": "info",
+            "message": message
+        ]
+        printJSON(json)
+    }
+    
+    func debug(_ message: String) {
+        let json: [String: Any] = [
+            "type": "debug",
+            "message": message
+        ]
+        printJSON(json)
+    }
+    
+    func error(_ message: String) {
+        let json: [String: Any] = [
+            "type": "error",
+            "message": message
+        ]
+        printJSON(json)
+    }
+    
+    func progress(percent: Double, progressBar: String) {
+        let json: [String: Any] = [
+            "type": "progress",
+            "progressFraction": percent,
+            "percentComplete": Int(percent * 100),
+            "progressBar": progressBar
+        ]
+        printJSON(json)
+    }
+    
+    func progressComplete() {
+        // Nothing to do for JSON logger
+    }
+    
+    func subtitle(at time: String, text: String) {
+        let json: [String: Any] = [
+            "type": "subtitle",
+            "time": time,
+            "text": text
+        ]
+        printJSON(json)
+    }
+    
+    func clearLine() {
+        // Nothing to do for JSON logger
+    }
+    
+    private func printJSON(_ json: [String: Any]) {
+        if let jsonData = try? JSONSerialization.data(withJSONObject: json),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            print(jsonString)
+            fflush(__stdoutp)
+        }
+    }
+}
 
 struct SubtitleExtractorCLI: ParsableCommand {
     @Argument(help: "Path to the video file.")
@@ -16,8 +126,12 @@ struct SubtitleExtractorCLI: ParsableCommand {
 
     @Option(name: .long, parsing: .upToNextOption, help: "Region of interest as x y width height (normalized 0.0-1.0)")
     var roi: [Double] = []
+    
+    @Flag(name: .long, help: "Output in JSON format.")
+    var json: Bool = false
 
     func run() throws {
+        let logger: Logger = json ? JSONLogger() : StandardLogger()
         let outputPath = output ?? "\(URL(fileURLWithPath: videoPath).deletingPathExtension().lastPathComponent).srt"
         var regionOfInterest: CGRect? = nil
         if roi.count == 4 {
@@ -26,15 +140,15 @@ struct SubtitleExtractorCLI: ParsableCommand {
             throw ValidationError("ROI must be four numbers: x y width height (all normalized 0.0-1.0)")
         }
 
-        print("Starting subtitle extraction process...")
-        print("Video: \(videoPath)")
-        print("Interval: \(interval) seconds")
-        print("Output: \(outputPath)")
+        logger.info("Starting subtitle extraction process...")
+        logger.info("Video: \(videoPath)")
+        logger.info("Interval: \(interval) seconds")
+        logger.info("Output: \(outputPath)")
         if let roi = regionOfInterest {
-            print("Region of interest: x=\(roi.origin.x), y=\(roi.origin.y), width=\(roi.size.width), height=\(roi.size.height)")
-            print("Note: Coordinates use (0,0) as BOTTOM-LEFT corner and (1,1) as TOP-RIGHT corner")
+            logger.info("Region of interest: x=\(roi.origin.x), y=\(roi.origin.y), width=\(roi.size.width), height=\(roi.size.height)")
+            logger.info("Note: Coordinates use (0,0) as BOTTOM-LEFT corner and (1,1) as TOP-RIGHT corner")
         } else {
-            print("Region of interest: Full frame")
+            logger.info("Region of interest: Full frame")
         }
 
         Task {
@@ -43,23 +157,24 @@ struct SubtitleExtractorCLI: ParsableCommand {
                     videoPath: videoPath,
                     intervalInSeconds: interval,
                     outputPath: outputPath,
-                    regionOfInterest: regionOfInterest
+                    regionOfInterest: regionOfInterest,
+                    logger: logger
                 )
                 try await extractor.prepare()
                 let success = try await extractor.extractSubtitles()
                 if success {
-                    print("Subtitle extraction completed successfully")
+                    logger.info("Subtitle extraction completed successfully")
                 } else {
-                    print("Subtitle extraction failed")
+                    logger.info("Subtitle extraction failed")
                 }
             } catch {
-                print("Error during subtitle extraction: \(error.localizedDescription)")
-                print("Error type: \(type(of: error))")
-                print("Error debug: \(error)")
+                logger.error("Error during subtitle extraction: \(error.localizedDescription)")
+                logger.error("Error type: \(type(of: error))")
+                logger.error("Error debug: \(error)")
                 if let nsError = error as NSError? {
-                    print("NSError domain: \(nsError.domain)")
-                    print("NSError code: \(nsError.code)")
-                    print("NSError userInfo: \(nsError.userInfo)")
+                    logger.error("NSError domain: \(nsError.domain)")
+                    logger.error("NSError code: \(nsError.code)")
+                    logger.error("NSError userInfo: \(nsError.userInfo)")
                 }
             }
             Foundation.exit(0)
@@ -78,17 +193,19 @@ class SubtitleExtractor {
     private let intervalInSeconds: Double
     private let outputPath: String
     private let regionOfInterest: CGRect?
+    private let logger: Logger
     
     private var subtitles: [Subtitle] = []
     private var currentFrameTime: CMTime = .zero
     private var videoDuration: CMTime = .zero
     
-    init(videoPath: String, intervalInSeconds: Double, outputPath: String, regionOfInterest: CGRect? = nil) {
+    init(videoPath: String, intervalInSeconds: Double, outputPath: String, regionOfInterest: CGRect? = nil, logger: Logger) {
         self.videoURL = URL(fileURLWithPath: videoPath)
         self.asset = AVURLAsset(url: videoURL)
         self.intervalInSeconds = intervalInSeconds
         self.outputPath = outputPath
         self.regionOfInterest = regionOfInterest
+        self.logger = logger
         
         // Get video duration - this is now handled in prepare()
     }
@@ -102,20 +219,20 @@ class SubtitleExtractor {
     // MARK: - Extract Subtitles
     
     func extractSubtitles() async throws -> Bool {
-        print("Starting subtitle extraction from \(videoURL.lastPathComponent)")
-        print("Video duration: \(CMTimeGetSeconds(videoDuration)) seconds")
-        print("Extracting frames every \(intervalInSeconds) seconds")
+        logger.info("Starting subtitle extraction from \(videoURL.lastPathComponent)")
+        logger.info("Video duration: \(CMTimeGetSeconds(videoDuration)) seconds")
+        logger.info("Extracting frames every \(intervalInSeconds) seconds")
         
         // Reset state
         subtitles.removeAll()
         currentFrameTime = .zero
         
-        print("Analyzing frames (this may take some time)...")
+        logger.info("Analyzing frames (this may take some time)...")
         
         // Process frames at regular intervals
         await processFrames()
         
-        print("Processing complete. Generating SRT file...")
+        logger.info("Processing complete. Generating SRT file...")
         writeSubtitlesToFile()
         return true
     }
@@ -143,8 +260,7 @@ class SubtitleExtractor {
             // Print terminal progress bar
             let progressBarFilled = Int(progressPercent * Double(progressBarWidth))
             let progressBar = String(repeating: "█", count: progressBarFilled) + String(repeating: "░", count: progressBarWidth - progressBarFilled)
-            print("\r[" + progressBar + "] \(Int(progressPercent * 100))%", terminator: "")
-            fflush(__stdoutp)
+            logger.progress(percent: progressPercent, progressBar: progressBar)
             
             // Generate image from the current time
             if let image = try? await generateImageFromVideo(at: currentFrameTime) {
@@ -169,9 +285,8 @@ class SubtitleExtractor {
                     
                     subtitles.append(subtitle)
                     // Clear the progress bar line and print the subtitle info
-                    print("\r" + String(repeating: " ", count: progressBarWidth + 7))
-                    print("\rFrame at \(formatTime(startTime)): \(recognizedText)")
-                    fflush(__stdoutp)
+                    logger.clearLine()
+                    logger.subtitle(at: formatTime(startTime), text: recognizedText)
                 }
             }
             
@@ -180,8 +295,9 @@ class SubtitleExtractor {
         }
         
         // Print 100% progress at the end
-        print("\r[" + String(repeating: "█", count: progressBarWidth) + "] 100%")
-        fflush(__stdoutp)
+        let completeProgressBar = String(repeating: "█", count: progressBarWidth)
+        logger.progress(percent: 1.0, progressBar: completeProgressBar)
+        logger.progressComplete()
     }
     
     // MARK: - Image Generation
@@ -196,7 +312,7 @@ class SubtitleExtractor {
             let (cgImage, _) = try await imageGenerator.image(at: time)
             return cgImage
         } catch {
-            print("Error generating image: \(error.localizedDescription)")
+            logger.error("Error generating image: \(error.localizedDescription)")
             return nil
         }
     }
@@ -231,7 +347,7 @@ class SubtitleExtractor {
             // Join the recognized text into a single string
             return recognizedStrings.joined(separator: " ")
         } catch {
-            print("Failed to perform OCR: \(error.localizedDescription)")
+            logger.error("Failed to perform OCR: \(error.localizedDescription)")
             return ""
         }
     }
@@ -240,7 +356,7 @@ class SubtitleExtractor {
     
     private func writeSubtitlesToFile() {
         guard !subtitles.isEmpty else {
-            print("No subtitles were detected in the video")
+            logger.info("No subtitles were detected in the video")
             return
         }
 
@@ -308,9 +424,9 @@ class SubtitleExtractor {
 
         do {
             try srtContent.write(toFile: outputPath, atomically: true, encoding: .utf8)
-            print("Successfully wrote \(mergedSubtitles.count) subtitles to \(outputPath)")
+            logger.info("Successfully wrote \(mergedSubtitles.count) subtitles to \(outputPath)")
         } catch {
-            print("Error writing SRT file: \(error.localizedDescription)")
+            logger.error("Error writing SRT file: \(error.localizedDescription)")
         }
     }
     

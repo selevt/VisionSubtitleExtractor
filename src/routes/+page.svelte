@@ -14,6 +14,7 @@
 
 	let isDragging = $state(false);
 	let inProgress = $state(false);
+	let progress = $state(0);
 
 	let res: ExtractResult | undefined = $state(undefined);
 	let resFilePath = $state('');
@@ -71,6 +72,7 @@
 
 		try {
 			inProgress = true;
+
 			const outputDir = await tempDir();
 			const uuid = crypto.randomUUID();
 			const outputPath = `${outputDir}output-${uuid}.srt`;
@@ -78,7 +80,10 @@
 				filePath,
 				outputPath,
 				intervalMs: hasCapability(backend, Capability.OPTION_INTERVAL) ? intervalMs : undefined,
-				roi: hasCapability(backend, Capability.REGION_OF_INTEREST) && roi ? roi : undefined
+				roi: hasCapability(backend, Capability.REGION_OF_INTEREST) && roi ? roi : undefined,
+				onProgress: (progressFraction) => {
+					progress = progressFraction;
+				}
 			});
 
 			console.log('done', output);
@@ -149,6 +154,7 @@
 	<button onclick={runCmd}>Start extraction {filePath ? `(${filePath})` : ''}</button>
 	{#if inProgress}
 		<p>In progress...</p>
+		<progress max={100} value={progress * 100} style="align-self: center;"></progress>
 	{:else if res && res.code === 0}
 		<p>Result: success</p>
 		<button onclick={saveSrt}>Save SRT</button>
