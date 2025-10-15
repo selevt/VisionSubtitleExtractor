@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Capability, hasCapability, type Backend, type ExtractResult } from '$lib/backend-common';
+	import { Capability, hasCapability, type Backend, type ExtractResult, type SupportedLanguage } from '$lib/backend-common';
 	import macBackend from '$lib/mac-cli';
 	import { tempDir } from '@tauri-apps/api/path';
 	import { open, save } from '@tauri-apps/plugin-dialog';
@@ -11,6 +11,8 @@
 	let fileName = $state('');
 	let intervalMs = $state(1000);
 	let roi = $state('');
+	let selectedLanguage = $state<string | undefined>(undefined);
+	let supportedLanguages = $state<SupportedLanguage[]>([]);
 
 	let isDragging = $state(false);
 	let inProgress = $state(false);
@@ -41,7 +43,25 @@
 
 	$effect(() => {
 		setupDragDrop().catch(console.error);
+		
+		if (hasCapability(backend, Capability.LANGUAGE_SELECTION) && backend.getSupportedLanguages) {
+			loadSupportedLanguages();
+		}
 	});
+	
+	async function loadSupportedLanguages() {
+		try {
+			if (backend.getSupportedLanguages) {
+				supportedLanguages = await backend.getSupportedLanguages();
+				console.log("Loaded supported languages:", supportedLanguages);
+				if (!selectedLanguage && supportedLanguages.length > 0) {
+					selectedLanguage = supportedLanguages[0].code;
+				}
+			}
+		} catch (error) {
+			console.error("Failed to load supported languages:", error);
+		}
+	}
 
 	async function handleFileSelect() {
 		// Use Tauri's dialog API to get the file path
@@ -81,6 +101,7 @@
 				outputPath,
 				intervalMs: hasCapability(backend, Capability.OPTION_INTERVAL) ? intervalMs : undefined,
 				roi: hasCapability(backend, Capability.REGION_OF_INTEREST) && roi ? roi : undefined,
+				language: hasCapability(backend, Capability.LANGUAGE_SELECTION) ? selectedLanguage : undefined,
 				onProgress: (progressFraction) => {
 					progress = progressFraction;
 				}
@@ -150,8 +171,21 @@
 			<input id="roi-input" bind:value={roi} />
 		</div>
 	{/if}
+	
+	{#if hasCapability(backend, Capability.LANGUAGE_SELECTION) && supportedLanguages.length > 0}
+		<div class="row">
+			<label for="language-select">Recognition language:</label>
+			<select id="language-select" bind:value={selectedLanguage}>
+				{#each supportedLanguages as language}
+					<option value={language.code}>
+						{language.name || language.code}
+					</option>
+				{/each}
+			</select>
+		</div>
+	{/if}
 
-	<button onclick={runCmd}>Start extraction {filePath ? `(${filePath})` : ''}</button>
+	<button onclick={runCmd} disabled={inProgress}>Start extraction {filePath ? `(${filePath})` : ''}</button>
 	{#if inProgress}
 		<p>In progress...</p>
 		<progress max={100} value={progress * 100} style="align-self: center;"></progress>
@@ -216,6 +250,7 @@
 
 	input[type='text'],
 	input[type='number'],
+	select,
 	button {
 		border-radius: 8px;
 		border: 1px solid transparent;
@@ -228,20 +263,24 @@
 		transition: border-color 0.25s;
 		box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
 	}
+	button:disabled {
+		opacity: 0.5;
+	}
 
-	button {
+	button:not(:disabled) {
 		cursor: pointer;
 	}
 
-	button:hover {
+	button:hover:not(:disabled) {
 		border-color: #396cd8;
 	}
-	button:active {
+	button:active:not(:disabled) {
 		border-color: #396cd8;
 		background-color: #e8e8e8;
 	}
 
 	input,
+	select,
 	button {
 		outline: none;
 	}
@@ -295,7 +334,7 @@
 		margin-right: 0.5rem;
 	}
 
-	#interval-input {
+	#interval-input, #language-select {
 		margin-left: 10px;
 	}
 
@@ -310,6 +349,7 @@
 		}
 
 		input,
+		select,
 		button {
 			color: #ffffff;
 			background-color: #0f0f0f98;

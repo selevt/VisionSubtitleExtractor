@@ -9,6 +9,16 @@
     "core:default",
     "opener:default",
     {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "binaries/vision-subtitle-extractor-mac",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    },
+    {
       "identifier": "shell:allow-spawn",
       "allow": [
         {

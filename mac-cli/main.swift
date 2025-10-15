@@ -13,6 +13,7 @@ protocol Logger {
     func progressComplete()
     func subtitle(at time: String, text: String)
     func clearLine()
+    func supportedLanguages(_ languages: [String])
 }
 
 class StandardLogger: Logger {
@@ -49,6 +50,14 @@ class StandardLogger: Logger {
     func clearLine() {
         // Clear the progress bar line
         print("\r" + String(repeating: " ", count: 37))
+        fflush(__stdoutp)
+    }
+    
+    func supportedLanguages(_ languages: [String]) {
+        print("Supported recognition languages:")
+        for language in languages {
+            print("- \(language)")
+        }
         fflush(__stdoutp)
     }
 }
@@ -105,6 +114,14 @@ class JSONLogger: Logger {
         // Nothing to do for JSON logger
     }
     
+    func supportedLanguages(_ languages: [String]) {
+        let json: [String: Any] = [
+            "type": "languages",
+            "supportedLanguages": languages
+        ]
+        printJSON(json)
+    }
+    
     private func printJSON(_ json: [String: Any]) {
         if let jsonData = try? JSONSerialization.data(withJSONObject: json),
            let jsonString = String(data: jsonData, encoding: .utf8) {
@@ -116,7 +133,7 @@ class JSONLogger: Logger {
 
 struct SubtitleExtractorCLI: ParsableCommand {
     @Argument(help: "Path to the video file.")
-    var videoPath: String
+    var videoPath: String?
 
     @Option(name: .shortAndLong, help: "Frame extraction interval in seconds.")
     var interval: Double = 1.0
@@ -127,11 +144,37 @@ struct SubtitleExtractorCLI: ParsableCommand {
     @Option(name: .long, parsing: .upToNextOption, help: "Region of interest as x y width height (normalized 0.0-1.0)")
     var roi: [Double] = []
     
+    @Option(name: [.short, .long], help: "Recognition language code (e.g., 'en-US', 'ko', 'ja')")
+    var language: String?
+    
     @Flag(name: .long, help: "Output in JSON format.")
     var json: Bool = false
+    
+    @Flag(name: .long, help: "List supported recognition languages.")
+    var listLanguages: Bool = false
 
     func run() throws {
         let logger: Logger = json ? JSONLogger() : StandardLogger()
+        
+            // Handle the list-languages flag
+        if listLanguages {
+            // Get supported languages using VNRecognizeTextRequest
+            let request = VNRecognizeTextRequest()
+            
+            do {
+                let supportedLanguages = try request.supportedRecognitionLanguages()
+                logger.supportedLanguages(supportedLanguages)
+            } catch {
+                logger.error("Failed to get supported languages: \(error.localizedDescription)")
+            }
+            return
+        }
+        
+        // Ensure we have a video path when not listing languages
+        guard let videoPath = videoPath else {
+            throw ValidationError("Video path is required unless using --list-languages")
+        }
+        
         let outputPath = output ?? "\(URL(fileURLWithPath: videoPath).deletingPathExtension().lastPathComponent).srt"
         var regionOfInterest: CGRect? = nil
         if roi.count == 4 {
@@ -150,6 +193,12 @@ struct SubtitleExtractorCLI: ParsableCommand {
         } else {
             logger.info("Region of interest: Full frame")
         }
+        
+        if let language = language {
+            logger.info("Recognition language: \(language)")
+        } else {
+            logger.info("Recognition language: Default")
+        }
 
         Task {
             do {
@@ -158,6 +207,7 @@ struct SubtitleExtractorCLI: ParsableCommand {
                     intervalInSeconds: interval,
                     outputPath: outputPath,
                     regionOfInterest: regionOfInterest,
+                    language: language,
                     logger: logger
                 )
                 try await extractor.prepare()
@@ -193,18 +243,20 @@ class SubtitleExtractor {
     private let intervalInSeconds: Double
     private let outputPath: String
     private let regionOfInterest: CGRect?
+    private let language: String?
     private let logger: Logger
     
     private var subtitles: [Subtitle] = []
     private var currentFrameTime: CMTime = .zero
     private var videoDuration: CMTime = .zero
     
-    init(videoPath: String, intervalInSeconds: Double, outputPath: String, regionOfInterest: CGRect? = nil, logger: Logger) {
+    init(videoPath: String, intervalInSeconds: Double, outputPath: String, regionOfInterest: CGRect? = nil, language: String? = nil, logger: Logger) {
         self.videoURL = URL(fileURLWithPath: videoPath)
         self.asset = AVURLAsset(url: videoURL)
         self.intervalInSeconds = intervalInSeconds
         self.outputPath = outputPath
         self.regionOfInterest = regionOfInterest
+        self.language = language
         self.logger = logger
         
         // Get video duration - this is now handled in prepare()
@@ -326,8 +378,15 @@ class SubtitleExtractor {
             let request = VNRecognizeTextRequest()
             request.recognitionLevel = .accurate
             request.usesLanguageCorrection = true
-            // TODO: Make this configurable
-            request.recognitionLanguages = ["ko"]
+            
+            // Use configured language or default
+            if let language = self.language {
+                request.recognitionLanguages = [language]
+                logger.debug("Using specified language: \(language)")
+            } else {
+                // Default behavior - using system default language
+                logger.debug("Using system default language")
+            }
             
             // Apply region of interest if specified
             if let roi = regionOfInterest {
@@ -457,4 +516,3 @@ struct Subtitle {
     let text: String
 }
 
-// Main execution is now handled by SubtitleExtractorCLI
