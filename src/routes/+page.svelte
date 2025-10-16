@@ -176,7 +176,8 @@
 		}
 
 		const destPath = await save({
-			title: 'Select file to save SRT'
+			title: 'Select file to save SRT',
+			defaultPath: filePath ? filePath.replace(/\.[^/.]+$/, '.srt') : 'output.srt',
 		});
 
 		if (destPath) {
