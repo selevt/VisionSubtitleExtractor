@@ -1,5 +1,12 @@
 <script lang="ts">
-	import { Capability, hasCapability, type Backend, type ExtractResult, type SupportedLanguage } from '$lib/backend-common';
+	import Progress from './Progress.svelte';
+	import {
+		Capability,
+		hasCapability,
+		type Backend,
+		type ExtractResult,
+		type SupportedLanguage
+	} from '$lib/backend-common';
 	import macBackend from '$lib/mac-cli';
 	import { tempDir } from '@tauri-apps/api/path';
 	import { open, save } from '@tauri-apps/plugin-dialog';
@@ -20,7 +27,14 @@
 
 	let isDragging = $state(false);
 	let inProgress = $state(false);
+
+	// Progress state
 	let progress = $state(0);
+	let framesProcessed = $state(0);
+	let totalFrames = $state(0);
+	let elapsedMs = $state(0);
+	let _progressStartTime: number | null = null;
+	let _progressTimer: number | null = null;
 
 	let res: ExtractResult | undefined = $state(undefined);
 	let resFilePath = $state('');
@@ -45,26 +59,28 @@
 		});
 	}
 
-
 	$effect(() => {
 		setupDragDrop().catch(console.error);
 		if (hasCapability(backend, Capability.LANGUAGE_SELECTION) && backend.getSupportedLanguages) {
 			loadSupportedLanguages();
 		}
 	});
-	
+
 	async function loadSupportedLanguages() {
 		try {
 			if (backend.getSupportedLanguages) {
 				supportedLanguages = await backend.getSupportedLanguages();
-				console.log("Loaded supported languages:", supportedLanguages);
+				console.log('Loaded supported languages:', supportedLanguages);
 				// If selectedLanguage is not set or not in the list, pick the first
-				if (!selectedLanguageStore.value || !supportedLanguages.some(l => l.code === selectedLanguageStore.value)) {
+				if (
+					!selectedLanguageStore.value ||
+					!supportedLanguages.some((l) => l.code === selectedLanguageStore.value)
+				) {
 					selectedLanguageStore.value = supportedLanguages[0]?.code;
 				}
 			}
 		} catch (error) {
-			console.error("Failed to load supported languages:", error);
+			console.error('Failed to load supported languages:', error);
 		}
 	}
 
@@ -97,6 +113,19 @@
 
 		try {
 			inProgress = true;
+			progress = 0;
+			framesProcessed = 0;
+			totalFrames = 0;
+			elapsedMs = 0;
+			_progressStartTime = Date.now();
+			if (_progressTimer) {
+				clearInterval(_progressTimer);
+			}
+					_progressTimer = setInterval(() => {
+						if (_progressStartTime) {
+							elapsedMs = Date.now() - _progressStartTime;
+						}
+					}, 1000);
 
 			const outputDir = await tempDir();
 			const uuid = crypto.randomUUID();
@@ -104,11 +133,22 @@
 			const output = await backend.extract({
 				filePath,
 				outputPath,
-				intervalMs: hasCapability(backend, Capability.OPTION_INTERVAL) ? intervalMsStore.value : undefined,
-				roi: hasCapability(backend, Capability.REGION_OF_INTEREST) && roiStore.value ? roiStore.value : undefined,
-				language: hasCapability(backend, Capability.LANGUAGE_SELECTION) ? selectedLanguageStore.value : undefined,
-				onProgress: (progressFraction) => {
-					progress = progressFraction;
+				intervalMs: hasCapability(backend, Capability.OPTION_INTERVAL)
+					? intervalMsStore.value
+					: undefined,
+				roi:
+					hasCapability(backend, Capability.REGION_OF_INTEREST) && roiStore.value
+						? roiStore.value
+						: undefined,
+				language: hasCapability(backend, Capability.LANGUAGE_SELECTION)
+					? selectedLanguageStore.value
+					: undefined,
+				onProgress: (progressObj) => {
+					if (typeof progressObj.progressFraction === 'number')
+						progress = progressObj.progressFraction;
+					if (typeof progressObj.framesProcessed === 'number')
+						framesProcessed = progressObj.framesProcessed;
+					if (typeof progressObj.totalFrames === 'number') totalFrames = progressObj.totalFrames;
 				}
 			});
 
@@ -122,6 +162,10 @@
 			resError = e;
 		} finally {
 			inProgress = false;
+			if (_progressTimer) {
+				clearInterval(_progressTimer);
+				_progressTimer = null;
+			}
 		}
 	}
 
@@ -164,21 +208,29 @@
 		<div class="row">
 			<label for="interval-input">Interval (ms):</label>
 			<input id="interval-input" inputmode="numeric" bind:value={intervalMsStore.value} />
-			<button type="button" style="margin-left: 8px;" onclick={() => intervalMsStore.reset()}>Reset</button>
+			<button type="button" style="margin-left: 8px;" onclick={() => intervalMsStore.reset()}
+				>Reset</button
+			>
 		</div>
 	{/if}
 
 	{#if hasCapability(backend, Capability.REGION_OF_INTEREST) && backend.roiFormat}
 		<div class="row">
 			<!-- TODO: integrate directly -->
-			<label for="roi-input">Region of interest (<a target='_blank' href={`https://selevt.github.io/video-area-selection/?template=${encodeURIComponent(backend.roiFormat())}`}> 
-				Get from here
-			</a>):</label>
+			<label for="roi-input"
+				>Region of interest (<a
+					target="_blank"
+					href={`https://selevt.github.io/video-area-selection/?template=${encodeURIComponent(backend.roiFormat())}`}
+				>
+					Get from here
+				</a>):</label
+			>
 			<input id="roi-input" bind:value={roiStore.value} />
-			<button type="button" style="margin-left: 8px;" onclick={() => roiStore.reset()}>Reset</button>
+			<button type="button" style="margin-left: 8px;" onclick={() => roiStore.reset()}>Reset</button
+			>
 		</div>
 	{/if}
-    
+
 	{#if hasCapability(backend, Capability.LANGUAGE_SELECTION) && supportedLanguages.length > 0}
 		<div class="row">
 			<label for="language-select">Recognition language:</label>
@@ -189,14 +241,24 @@
 					</option>
 				{/each}
 			</select>
-			<button type="button" style="margin-left: 8px;" onclick={() => selectedLanguageStore.value = supportedLanguages[0]?.code}>Reset</button>
+			<button
+				type="button"
+				style="margin-left: 8px;"
+				onclick={() => (selectedLanguageStore.value = supportedLanguages[0]?.code)}>Reset</button
+			>
 		</div>
 	{/if}
 
-	<button onclick={runCmd} disabled={inProgress}>Start extraction {filePath ? `(${filePath})` : ''}</button>
-	{#if inProgress}
-		<p>In progress...</p>
-		<progress max={100} value={progress * 100} style="align-self: center;"></progress>
+	<button onclick={runCmd} disabled={inProgress}
+		>Start extraction {filePath ? `(${filePath})` : ''}</button
+	>
+		{#if inProgress}
+				<Progress
+					{progress}
+					{framesProcessed}
+					{totalFrames}
+					elapsedMs={elapsedMs}
+				/>
 	{:else if res && res.code === 0}
 		<p>Result: success</p>
 		<button onclick={saveSrt}>Save SRT</button>
@@ -210,6 +272,7 @@
 		{/if}
 	{/if}
 </main>
+
 
 <style>
 	:root {
@@ -342,7 +405,8 @@
 		margin-right: 0.5rem;
 	}
 
-	#interval-input, #language-select {
+	#interval-input,
+	#language-select {
 		margin-left: 10px;
 	}
 

@@ -74,11 +74,11 @@ export const macCliBackend: Backend = {
 			if (onProgress) {
 				try {
 					const jsonData = JSON.parse(line);
-					if (jsonData.type === 'progress' && typeof jsonData.progressFraction === 'number') {
-						onProgress(jsonData.progressFraction);
+					if (jsonData.type === 'progress') {
+						onProgress(jsonData);
 					}
 				} catch (e) {
-					console.warn('Failed to parse mac-cli JSON output:', line, e);
+					// fallback: if not JSON, ignore
 				}
 			}
 		});

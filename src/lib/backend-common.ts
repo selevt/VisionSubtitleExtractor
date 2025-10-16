@@ -8,9 +8,14 @@ export interface ExtractOptions {
   roi?: string;
 
   /**
-   * Optional callback to receive progress updates (0.0 to 1.0)
+   * Optional callback to receive progress updates
    */
-  onProgress?: (progressFraction: number) => void;
+  onProgress?: (progress: {
+    progressFraction: number;
+    percentComplete: number;
+    framesProcessed?: number;
+    totalFrames?: number;
+  }) => void;
 }
 export interface ExtractResult {
   stdout: string;

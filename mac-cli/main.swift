@@ -9,7 +9,7 @@ protocol Logger {
     func info(_ message: String)
     func debug(_ message: String)
     func error(_ message: String)
-    func progress(percent: Double, progressBar: String)
+    func progress(percent: Double, progressBar: String, framesProcessed: Int, totalFrames: Int)
     func progressComplete()
     func subtitle(at time: String, text: String)
     func clearLine()
@@ -32,8 +32,11 @@ class StandardLogger: Logger {
         fflush(__stdoutp)
     }
     
-    func progress(percent: Double, progressBar: String) {
-        print("\r[\(progressBar)] \(Int(percent * 100))%", terminator: "")
+    func progress(percent: Double, progressBar: String, framesProcessed: Int, totalFrames: Int) {
+        let percentStr = String(format: "%3d", Int(percent * 100))
+        let framesStr = "Frames: \(framesProcessed)/\(totalFrames)"
+        let bar = "[\(progressBar)] \(percentStr)%  \(framesStr)"
+        print("\r\(bar)", terminator: "")
         fflush(__stdoutp)
     }
     
@@ -87,12 +90,14 @@ class JSONLogger: Logger {
         printJSON(json)
     }
     
-    func progress(percent: Double, progressBar: String) {
+    func progress(percent: Double, progressBar: String, framesProcessed: Int, totalFrames: Int) {
         let json: [String: Any] = [
             "type": "progress",
             "progressFraction": percent,
             "percentComplete": Int(percent * 100),
-            "progressBar": progressBar
+            "progressBar": progressBar,
+            "framesProcessed": framesProcessed,
+            "totalFrames": totalFrames
         ]
         printJSON(json)
     }
@@ -292,64 +297,68 @@ class SubtitleExtractor {
     private func processFrames() async {
         // Start at a small offset from zero to avoid "Cannot Open" error with exact zero time
         currentFrameTime = CMTimeMakeWithSeconds(0.1, preferredTimescale: 600)
-        
-        // Create a progress object for tracking overall progress
+
         let totalSeconds = CMTimeGetSeconds(videoDuration)
-        let progress = Progress(totalUnitCount: Int64(totalSeconds / intervalInSeconds))
-        // progress.kind = .file
-        // progress.fileOperationKind = .processing
-        
-        // For terminal progress bar
+        let totalFrames = Int(totalSeconds / intervalInSeconds)
+        var framesProcessed = 0
         let progressBarWidth = 30
-        
+    // let startTime = Date() // elapsed is now frontend only
+
         while CMTimeCompare(currentFrameTime, videoDuration) < 0 {
-            // Update progress
             let currentSeconds = CMTimeGetSeconds(currentFrameTime)
-            let progressPercent = currentSeconds / totalSeconds
-            let completedWork = Int64(currentSeconds / intervalInSeconds)
-            progress.completedUnitCount = completedWork
-            
-            // Print terminal progress bar
+            let progressPercent = min(currentSeconds / totalSeconds, 1.0)
             let progressBarFilled = Int(progressPercent * Double(progressBarWidth))
             let progressBar = String(repeating: "█", count: progressBarFilled) + String(repeating: "░", count: progressBarWidth - progressBarFilled)
-            logger.progress(percent: progressPercent, progressBar: progressBar)
-            
+
+            // Calculate elapsed time
+            logger.progress(percent: progressPercent, progressBar: progressBar, framesProcessed: framesProcessed, totalFrames: totalFrames)
+
             // Generate image from the current time
             if let image = try? await generateImageFromVideo(at: currentFrameTime) {
                 // Perform OCR on the image
                 let recognizedText = await performOCR(on: image)
-                
+
                 if !recognizedText.isEmpty {
                     let startTime = currentFrameTime
                     var endTime = CMTimeAdd(startTime, CMTimeMakeWithSeconds(intervalInSeconds, preferredTimescale: 600))
-                    
+
                     // Ensure endTime doesn't exceed video duration
                     if CMTimeCompare(endTime, videoDuration) > 0 {
                         endTime = videoDuration
                     }
-                    
+
                     let subtitle = Subtitle(
                         index: subtitles.count + 1,
                         startTime: startTime,
                         endTime: endTime,
                         text: recognizedText
                     )
-                    
+
                     subtitles.append(subtitle)
                     // Clear the progress bar line and print the subtitle info
                     logger.clearLine()
                     logger.subtitle(at: formatTime(startTime), text: recognizedText)
                 }
             }
-            
+
+            framesProcessed += 1
             // Move to the next time interval
             currentFrameTime = CMTimeAdd(currentFrameTime, CMTimeMakeWithSeconds(intervalInSeconds, preferredTimescale: 600))
         }
-        
+
         // Print 100% progress at the end
         let completeProgressBar = String(repeating: "█", count: progressBarWidth)
-        logger.progress(percent: 1.0, progressBar: completeProgressBar)
+    logger.progress(percent: 1.0, progressBar: completeProgressBar, framesProcessed: totalFrames, totalFrames: totalFrames)
         logger.progressComplete()
+    }
+
+    // Utility for formatting elapsed time as HH:MM:SS
+    static func formatElapsedTime(_ interval: TimeInterval) -> String {
+        let ti = Int(interval)
+        let seconds = ti % 60
+        let minutes = (ti / 60) % 60
+        let hours = ti / 3600
+        return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
     }
     
     // MARK: - Image Generation
