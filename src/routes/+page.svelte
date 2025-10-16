@@ -293,15 +293,17 @@
 
 	.container {
 		margin: 0;
-		padding-top: 10vh;
+		padding-top: 5vh;
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
 		text-align: center;
+		gap: 8px;
 	}
 
 	.row {
 		display: flex;
+		align-items: center;
 		justify-content: center;
 	}
 
@@ -348,12 +350,6 @@
 	button:active:not(:disabled) {
 		border-color: #396cd8;
 		background-color: #e8e8e8;
-	}
-
-	input,
-	select,
-	button {
-		outline: none;
 	}
 
 	.file-drop-area {
@@ -406,8 +402,9 @@
 	}
 
 	#interval-input,
+	#roi-input,
 	#language-select {
-		margin-left: 10px;
+		margin-left: 8px;
 	}
 
 	@media (prefers-color-scheme: dark) {
