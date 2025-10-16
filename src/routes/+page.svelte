@@ -5,13 +5,17 @@
 	import { open, save } from '@tauri-apps/plugin-dialog';
 	import { getCurrentWebview } from '@tauri-apps/api/webview';
 	import { copyFile } from '@tauri-apps/plugin-fs';
+	import { useLocalStorage } from '$lib/useLocalStorage.svelte';
 	const backend: Backend = macBackend;
 
 	let filePath = $state('');
 	let fileName = $state('');
-	let intervalMs = $state(1000);
-	let roi = $state('');
-	let selectedLanguage = $state<string | undefined>(undefined);
+	const DEFAULT_INTERVAL_MS = 1000;
+	const DEFAULT_ROI = '';
+
+	const intervalMsStore = useLocalStorage<number>('intervalMs', DEFAULT_INTERVAL_MS);
+	const roiStore = useLocalStorage<string>('roi', DEFAULT_ROI);
+	const selectedLanguageStore = useLocalStorage<string | undefined>('selectedLanguage', undefined);
 	let supportedLanguages = $state<SupportedLanguage[]>([]);
 
 	let isDragging = $state(false);
@@ -41,9 +45,9 @@
 		});
 	}
 
+
 	$effect(() => {
 		setupDragDrop().catch(console.error);
-		
 		if (hasCapability(backend, Capability.LANGUAGE_SELECTION) && backend.getSupportedLanguages) {
 			loadSupportedLanguages();
 		}
@@ -54,8 +58,9 @@
 			if (backend.getSupportedLanguages) {
 				supportedLanguages = await backend.getSupportedLanguages();
 				console.log("Loaded supported languages:", supportedLanguages);
-				if (!selectedLanguage && supportedLanguages.length > 0) {
-					selectedLanguage = supportedLanguages[0].code;
+				// If selectedLanguage is not set or not in the list, pick the first
+				if (!selectedLanguageStore.value || !supportedLanguages.some(l => l.code === selectedLanguageStore.value)) {
+					selectedLanguageStore.value = supportedLanguages[0]?.code;
 				}
 			}
 		} catch (error) {
@@ -99,9 +104,9 @@
 			const output = await backend.extract({
 				filePath,
 				outputPath,
-				intervalMs: hasCapability(backend, Capability.OPTION_INTERVAL) ? intervalMs : undefined,
-				roi: hasCapability(backend, Capability.REGION_OF_INTEREST) && roi ? roi : undefined,
-				language: hasCapability(backend, Capability.LANGUAGE_SELECTION) ? selectedLanguage : undefined,
+				intervalMs: hasCapability(backend, Capability.OPTION_INTERVAL) ? intervalMsStore.value : undefined,
+				roi: hasCapability(backend, Capability.REGION_OF_INTEREST) && roiStore.value ? roiStore.value : undefined,
+				language: hasCapability(backend, Capability.LANGUAGE_SELECTION) ? selectedLanguageStore.value : undefined,
 				onProgress: (progressFraction) => {
 					progress = progressFraction;
 				}
@@ -158,30 +163,33 @@
 	{#if hasCapability(backend, Capability.OPTION_INTERVAL)}
 		<div class="row">
 			<label for="interval-input">Interval (ms):</label>
-			<input id="interval-input" inputmode="numeric" bind:value={intervalMs} />
+			<input id="interval-input" inputmode="numeric" bind:value={intervalMsStore.value} />
+			<button type="button" style="margin-left: 8px;" onclick={() => intervalMsStore.reset()}>Reset</button>
 		</div>
 	{/if}
 
 	{#if hasCapability(backend, Capability.REGION_OF_INTEREST) && backend.roiFormat}
 		<div class="row">
 			<!-- TODO: integrate directly -->
-			<label for="roi-input">Region of interest (<a target='_blank' href={`https://selevt.github.io/video-area-selection/?template=${encodeURIComponent(backend.roiFormat())}`}>
+			<label for="roi-input">Region of interest (<a target='_blank' href={`https://selevt.github.io/video-area-selection/?template=${encodeURIComponent(backend.roiFormat())}`}> 
 				Get from here
 			</a>):</label>
-			<input id="roi-input" bind:value={roi} />
+			<input id="roi-input" bind:value={roiStore.value} />
+			<button type="button" style="margin-left: 8px;" onclick={() => roiStore.reset()}>Reset</button>
 		</div>
 	{/if}
-	
+    
 	{#if hasCapability(backend, Capability.LANGUAGE_SELECTION) && supportedLanguages.length > 0}
 		<div class="row">
 			<label for="language-select">Recognition language:</label>
-			<select id="language-select" bind:value={selectedLanguage}>
+			<select id="language-select" bind:value={selectedLanguageStore.value}>
 				{#each supportedLanguages as language}
 					<option value={language.code}>
 						{language.name || language.code}
 					</option>
 				{/each}
 			</select>
+			<button type="button" style="margin-left: 8px;" onclick={() => selectedLanguageStore.value = supportedLanguages[0]?.code}>Reset</button>
 		</div>
 	{/if}
 
