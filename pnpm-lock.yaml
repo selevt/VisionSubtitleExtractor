@@ -23,6 +23,9 @@ importers:
       '@tauri-apps/plugin-shell':
         specifier: ~2.3.1
         version: 2.3.1
+      video-area-selection:
+        specifier: github:selevt/video-area-selection#v0.1.1
+        version: video-area-selector@https://codeload.github.com/selevt/video-area-selection/tar.gz/3be9b4b757effb932fa172494338709b356ee1c9
     devDependencies:
       '@sveltejs/adapter-static':
         specifier: ^3.0.6
@@ -641,6 +644,10 @@ packages:
     engines: {node: '>=14.17'}
     hasBin: true
 
+  video-area-selector@https://codeload.github.com/selevt/video-area-selection/tar.gz/3be9b4b757effb932fa172494338709b356ee1c9:
+    resolution: {tarball: https://codeload.github.com/selevt/video-area-selection/tar.gz/3be9b4b757effb932fa172494338709b356ee1c9}
+    version: 1.0.0
+
   vite@6.3.7:
     resolution: {integrity: sha512-mQYaKepA0NGMBsz8Xktt3tJUG5ELE2iT7IJ+ssXI6nxVdE2sFc/d/6w/JByqMLvWg8hNKHpPgzjgOkrhpKFnrA==}
     engines: {node: ^18.0.0 || ^20.0.0 || >=22.0.0}
@@ -1161,6 +1168,8 @@ snapshots:
   totalist@3.0.1: {}
 
   typescript@5.6.3: {}
+
+  video-area-selector@https://codeload.github.com/selevt/video-area-selection/tar.gz/3be9b4b757effb932fa172494338709b356ee1c9: {}
 
   vite@6.3.7:
     dependencies:

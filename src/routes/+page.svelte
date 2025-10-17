@@ -13,15 +13,26 @@
 	import { getCurrentWebview } from '@tauri-apps/api/webview';
 	import { copyFile } from '@tauri-apps/plugin-fs';
 	import { useLocalStorage } from '$lib/useLocalStorage.svelte';
+	import VideoAreaSelector from './VideoAreaSelector.svelte';
+
+	import { convertFileSrc } from '@tauri-apps/api/core';
+
+	import './base.css';
+
+	interface RoiData {
+		selectionData: any;
+		formatted?: string;
+	}
+
 	const backend: Backend = macBackend;
 
 	let filePath = $state('');
 	let fileName = $state('');
 	const DEFAULT_INTERVAL_MS = 1000;
-	const DEFAULT_ROI = '';
+	const DEFAULT_ROI = undefined;
 
 	const intervalMsStore = useLocalStorage<number>('intervalMs', DEFAULT_INTERVAL_MS);
-	const roiStore = useLocalStorage<string>('roi', DEFAULT_ROI);
+	const roiStore = useLocalStorage<RoiData | undefined>('roi', DEFAULT_ROI, 'json');
 	const selectedLanguageStore = useLocalStorage<string | undefined>('selectedLanguage', undefined);
 	let supportedLanguages = $state<SupportedLanguage[]>([]);
 
@@ -121,11 +132,11 @@
 			if (_progressTimer) {
 				clearInterval(_progressTimer);
 			}
-					_progressTimer = setInterval(() => {
-						if (_progressStartTime) {
-							elapsedMs = Date.now() - _progressStartTime;
-						}
-					}, 1000);
+			_progressTimer = setInterval(() => {
+				if (_progressStartTime) {
+					elapsedMs = Date.now() - _progressStartTime;
+				}
+			}, 1000);
 
 			const outputDir = await tempDir();
 			const uuid = crypto.randomUUID();
@@ -138,7 +149,7 @@
 					: undefined,
 				roi:
 					hasCapability(backend, Capability.REGION_OF_INTEREST) && roiStore.value
-						? roiStore.value
+						? roiStore.value.formatted
 						: undefined,
 				language: hasCapability(backend, Capability.LANGUAGE_SELECTION)
 					? selectedLanguageStore.value
@@ -152,7 +163,6 @@
 				}
 			});
 
-			console.log('done', output);
 			res = output;
 			resFilePath = outputPath;
 			resError = undefined;
@@ -177,7 +187,7 @@
 
 		const destPath = await save({
 			title: 'Select file to save SRT',
-			defaultPath: filePath ? filePath.replace(/\.[^/.]+$/, '.srt') : 'output.srt',
+			defaultPath: filePath ? filePath.replace(/\.[^/.]+$/, '.srt') : 'output.srt'
 		});
 
 		if (destPath) {
@@ -190,20 +200,32 @@
 <main class="container">
 	<h1>Vision Subtitle Extractor</h1>
 
-	<form>
-		<div class="file-drop-area {isDragging ? 'dragging' : ''}">
-			<button
-				type="button"
-				class="file-input-container"
-				onclick={handleFileSelect}
-				onkeydown={(e) => e.key === 'Enter' && handleFileSelect()}
-			>
-				<span class="file-input-label">
-					{fileName ? fileName : 'Click to choose a video file or drag and drop'}
-				</span>
-			</button>
+	<div class="file-drop-area {isDragging ? 'dragging' : ''}">
+		<button
+			type="button"
+			class="file-input-container"
+			onclick={handleFileSelect}
+			onkeydown={(e) => e.key === 'Enter' && handleFileSelect()}
+		>
+			<span class="file-input-label">
+				{fileName ? fileName : 'Click to choose a video file or drag and drop'}
+			</span>
+		</button>
+	</div>
+
+	{#if filePath}
+		<div class="video-area-selector">
+			<VideoAreaSelector
+				video={convertFileSrc(filePath)}
+				template={backend.roiFormat ? backend.roiFormat() : undefined}
+				initialSelection={roiStore.value}
+				canRoi={Boolean(hasCapability(backend, Capability.REGION_OF_INTEREST) && backend.roiFormat)}
+				onChange={(e) => {
+					roiStore.value = e;
+				}}
+			></VideoAreaSelector>
 		</div>
-	</form>
+	{/if}
 
 	{#if hasCapability(backend, Capability.OPTION_INTERVAL)}
 		<div class="row">
@@ -211,23 +233,6 @@
 			<input id="interval-input" inputmode="numeric" bind:value={intervalMsStore.value} />
 			<button type="button" style="margin-left: 8px;" onclick={() => intervalMsStore.reset()}
 				>Reset</button
-			>
-		</div>
-	{/if}
-
-	{#if hasCapability(backend, Capability.REGION_OF_INTEREST) && backend.roiFormat}
-		<div class="row">
-			<!-- TODO: integrate directly -->
-			<label for="roi-input"
-				>Region of interest (<a
-					target="_blank"
-					href={`https://selevt.github.io/video-area-selection/?template=${encodeURIComponent(backend.roiFormat())}`}
-				>
-					Get from here
-				</a>):</label
-			>
-			<input id="roi-input" bind:value={roiStore.value} />
-			<button type="button" style="margin-left: 8px;" onclick={() => roiStore.reset()}>Reset</button
 			>
 		</div>
 	{/if}
@@ -253,13 +258,8 @@
 	<button onclick={runCmd} disabled={inProgress}
 		>Start extraction {filePath ? `(${filePath})` : ''}</button
 	>
-		{#if inProgress}
-				<Progress
-					{progress}
-					{framesProcessed}
-					{totalFrames}
-					elapsedMs={elapsedMs}
-				/>
+	{#if inProgress}
+		<Progress {progress} {framesProcessed} {totalFrames} {elapsedMs} />
 	{:else if res && res.code === 0}
 		<p>Result: success</p>
 		<button onclick={saveSrt}>Save SRT</button>
@@ -274,30 +274,14 @@
 	{/if}
 </main>
 
-
 <style>
-	:root {
-		font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-		font-size: 16px;
-		line-height: 24px;
-		font-weight: 400;
-
-		color: #0f0f0f;
-		background-color: #f6f6f6;
-
-		font-synthesis: none;
-		text-rendering: optimizeLegibility;
-		-webkit-font-smoothing: antialiased;
-		-moz-osx-font-smoothing: grayscale;
-		-webkit-text-size-adjust: 100%;
-	}
-
 	.container {
 		margin: 0;
 		padding-top: 5vh;
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
+		align-items: center;
 		text-align: center;
 		gap: 8px;
 	}
@@ -308,49 +292,8 @@
 		justify-content: center;
 	}
 
-	a {
-		font-weight: 500;
-		color: #646cff;
-		text-decoration: inherit;
-	}
-
-	a:hover {
-		color: #535bf2;
-	}
-
 	h1 {
 		text-align: center;
-	}
-
-	input[type='text'],
-	input[type='number'],
-	select,
-	button {
-		border-radius: 8px;
-		border: 1px solid transparent;
-		padding: 0.6em 1.2em;
-		font-size: 1em;
-		font-weight: 500;
-		font-family: inherit;
-		color: #0f0f0f;
-		background-color: #ffffff;
-		transition: border-color 0.25s;
-		box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-	}
-	button:disabled {
-		opacity: 0.5;
-	}
-
-	button:not(:disabled) {
-		cursor: pointer;
-	}
-
-	button:hover:not(:disabled) {
-		border-color: #396cd8;
-	}
-	button:active:not(:disabled) {
-		border-color: #396cd8;
-		background-color: #e8e8e8;
 	}
 
 	.file-drop-area {
@@ -384,6 +327,13 @@
 		background-color: rgba(57, 108, 216, 0.1);
 	}
 
+	.video-area-selector {
+		width: 70%;
+		max-width: 800px;
+		display: flex;
+		justify-content: center;
+	}
+
 	.file-input-label {
 		display: flex;
 		align-items: center;
@@ -402,32 +352,7 @@
 		margin-right: 0.5rem;
 	}
 
-	#interval-input,
-	#roi-input,
-	#language-select {
-		margin-left: 8px;
-	}
-
 	@media (prefers-color-scheme: dark) {
-		:root {
-			color: #f6f6f6;
-			background-color: #2f2f2f;
-		}
-
-		a:hover {
-			color: #24c8db;
-		}
-
-		input,
-		select,
-		button {
-			color: #ffffff;
-			background-color: #0f0f0f98;
-		}
-		button:active {
-			background-color: #0f0f0f69;
-		}
-
 		.file-drop-area {
 			background-color: #1a1a1a;
 			border-color: #444;

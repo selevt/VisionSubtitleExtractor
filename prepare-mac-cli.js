@@ -9,8 +9,6 @@ if (!targetTriple) {
   console.error('Failed to determine platform target triple');
 }
 execSync('cd mac-cli && swift build -c release && cd ..');
-const f = execSync('pwd');
-console.log('f', f.toString());
 
 if (!fs.existsSync('src-tauri/binaries')) {
   fs.mkdirSync('src-tauri/binaries');
